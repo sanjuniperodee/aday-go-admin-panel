@@ -14,6 +14,7 @@ import {
 } from '@mui/material';
 import { PhoneOutlined, SmsOutlined } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
+import { apiService } from '../services/api';
 
 const Login: React.FC = () => {
   const [phone, setPhone] = useState('');
@@ -22,16 +23,17 @@ const Login: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
   const [successMessage, setSuccessMessage] = useState('');
-  const { sendSMSCode, confirmSMSCode } = useAuth();
+  const { login, authError, clearAuthError } = useAuth();
 
   const handleSendCode = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccessMessage('');
+    clearAuthError();
     setLoading(true);
 
     try {
-      const response = await sendSMSCode({ phone });
+      const response = await apiService.sendSMSCode({ phone });
       setActiveStep(1);
       setSuccessMessage('SMS код отправлен на ваш телефон');
       
@@ -49,10 +51,11 @@ const Login: React.FC = () => {
   const handleConfirmCode = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    clearAuthError();
     setLoading(true);
 
     try {
-      await confirmSMSCode({ phone, smscode });
+      await login(phone, smscode);
       // Авторизация успешна, AuthContext автоматически обновит состояние
     } catch (err: any) {
       setError(err.message || 'Неверный код');
@@ -66,7 +69,11 @@ const Login: React.FC = () => {
     setSmscode('');
     setError('');
     setSuccessMessage('');
+    clearAuthError();
   };
+
+  // Показываем ошибки из AuthContext
+  const displayError = error || authError;
 
   const steps = ['Введите номер телефона', 'Введите SMS код'];
 
@@ -121,9 +128,9 @@ const Login: React.FC = () => {
             ))}
           </Stepper>
 
-          {error && (
+          {displayError && (
             <Alert severity="error" sx={{ width: '100%', mb: 2 }}>
-              {error}
+              {displayError}
             </Alert>
           )}
 

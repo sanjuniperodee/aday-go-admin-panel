@@ -13,6 +13,8 @@ import {
   Toolbar,
   Typography,
   Button,
+  Alert,
+  Snackbar,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -35,7 +37,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const { logout } = useAuth();
+  const { logout, authError, clearAuthError } = useAuth();
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -146,6 +148,22 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <Toolbar />
         {children}
       </Box>
+
+      {/* Уведомления об ошибках авторизации */}
+      <Snackbar
+        open={!!authError}
+        autoHideDuration={8000}
+        onClose={clearAuthError}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert 
+          onClose={clearAuthError} 
+          severity="warning"
+          sx={{ width: '100%' }}
+        >
+          {authError}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

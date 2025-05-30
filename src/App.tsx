@@ -10,6 +10,7 @@ import Clients from './pages/Clients';
 import Drivers from './pages/Drivers';
 import Orders from './pages/Orders';
 import UserDetail from './pages/UserDetail';
+import OrderDetail from './pages/OrderDetail';
 import './App.css';
 
 // Создаем тему Material-UI
@@ -123,6 +124,16 @@ function App() {
                 <ProtectedRoute>
                   <Layout>
                     <Orders />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/orders/:orderId"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <OrderDetail />
                   </Layout>
                 </ProtectedRoute>
               }
