@@ -7,8 +7,11 @@ import Layout from './components/Layout';
 import Login from './components/Login';
 import Dashboard from './pages/Dashboard';
 import Clients from './pages/Clients';
+import ClientDetail from './pages/ClientDetail';
 import Drivers from './pages/Drivers';
+import DriverDetail from './pages/DriverDetail';
 import Orders from './pages/Orders';
+import OrderDetail from './pages/OrderDetail';
 import './App.css';
 
 // Создаем тему Material-UI
@@ -102,6 +105,36 @@ function App() {
                 <ProtectedRoute>
                   <Layout>
                     <Orders />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/order-detail/:orderId"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <OrderDetail />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/client-detail/:clientId"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <ClientDetail />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/driver-detail/:driverId"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <DriverDetail />
                   </Layout>
                 </ProtectedRoute>
               }

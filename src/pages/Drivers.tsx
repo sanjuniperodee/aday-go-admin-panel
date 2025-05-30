@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -26,6 +27,7 @@ import { apiService } from '../services/api';
 import { User, OrderType } from '../types';
 
 const Drivers: React.FC = () => {
+  const navigate = useNavigate();
   const [drivers, setDrivers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
@@ -61,13 +63,13 @@ const Drivers: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [paginationModel.page, paginationModel.pageSize, showSnackbar]);
+  }, [paginationModel.page, paginationModel.pageSize]);
 
   useEffect(() => {
     fetchDrivers();
   }, [fetchDrivers]);
 
-  const handleUnblockUser = async (user: User) => {
+  const handleUnblockUser = useCallback(async (user: User) => {
     try {
       await apiService.unblockUser(user.id);
       showSnackbar(`Водитель ${user.firstName} ${user.lastName} разблокирован`, 'success');
@@ -75,9 +77,9 @@ const Drivers: React.FC = () => {
     } catch (error: any) {
       showSnackbar('Ошибка разблокировки: ' + error.message, 'error');
     }
-  };
+  }, [fetchDrivers]);
 
-  const getOrderTypeLabel = (type: OrderType) => {
+  const getOrderTypeLabel = useCallback((type: OrderType) => {
     const labels = {
       [OrderType.TAXI]: 'Такси',
       [OrderType.DELIVERY]: 'Доставка',
@@ -85,9 +87,9 @@ const Drivers: React.FC = () => {
       [OrderType.CARGO]: 'Грузоперевозки',
     };
     return labels[type] || type;
-  };
+  }, []);
 
-  const columns: GridColDef[] = [
+  const columns: GridColDef[] = useMemo(() => [
     { field: 'id', headerName: 'ID', width: 100 },
     { field: 'phone', headerName: 'Телефон', width: 150 },
     { field: 'firstName', headerName: 'Имя', width: 150 },
@@ -165,7 +167,7 @@ const Drivers: React.FC = () => {
             icon={<Visibility />}
             label="Просмотр"
             onClick={() => {
-              console.log('View driver:', driver);
+              navigate(`/driver-detail/${driver.id}`);
             }}
           />,
         ];
@@ -183,7 +185,7 @@ const Drivers: React.FC = () => {
         return actions;
       },
     },
-  ];
+  ], [getOrderTypeLabel, handleUnblockUser, navigate]);
 
   return (
     <Box>

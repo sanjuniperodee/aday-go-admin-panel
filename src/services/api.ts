@@ -1,9 +1,49 @@
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
 import { User, Order, BlockUserRequest, StatsData, AdminAuth, AdminSMSRequest, AdminSMSConfirm } from '../types';
 
+// Simple cache implementation
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+  ttl: number; // time to live in milliseconds
+}
+
+class SimpleCache {
+  private cache = new Map<string, CacheEntry<any>>();
+
+  set<T>(key: string, data: T, ttl: number = 30000): void { // default 30 seconds
+    this.cache.set(key, {
+      data,
+      timestamp: Date.now(),
+      ttl
+    });
+  }
+
+  get<T>(key: string): T | null {
+    const entry = this.cache.get(key);
+    if (!entry) return null;
+
+    if (Date.now() - entry.timestamp > entry.ttl) {
+      this.cache.delete(key);
+      return null;
+    }
+
+    return entry.data;
+  }
+
+  clear(): void {
+    this.cache.clear();
+  }
+
+  delete(key: string): void {
+    this.cache.delete(key);
+  }
+}
+
 class ApiService {
   private api: AxiosInstance;
   private token: string | null = null;
+  private cache = new SimpleCache();
 
   constructor() {
     this.api = axios.create({
@@ -33,6 +73,10 @@ class ApiService {
 
   private setAuthHeader(token: string) {
     this.api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+  }
+
+  private getCacheKey(endpoint: string, params?: any): string {
+    return `${endpoint}_${JSON.stringify(params || {})}`;
   }
 
   // SMS авторизация админа - отправка кода
@@ -85,6 +129,7 @@ class ApiService {
     this.token = null;
     localStorage.removeItem('adminToken');
     delete this.api.defaults.headers.common['Authorization'];
+    this.cache.clear(); // Clear cache on logout
   }
 
   isAuthenticated(): boolean {
@@ -108,13 +153,36 @@ class ApiService {
     _sort?: string;
     _order?: 'ASC' | 'DESC';
   }): Promise<{ data: User[]; total: number }> {
+    const cacheKey = this.getCacheKey('/admin/clients', params);
+    const cached = this.cache.get<{ data: User[]; total: number }>(cacheKey);
+    
+    if (cached) {
+      return cached;
+    }
+
     const response: AxiosResponse<User[]> = await this.api.get('/admin/clients', { params });
     const total = parseInt(response.headers['x-total-count'] || '0');
-    return { data: response.data, total };
+    const result = { data: response.data, total };
+    
+    // Cache for 15 seconds for list data
+    this.cache.set(cacheKey, result, 15000);
+    
+    return result;
   }
 
   async getClient(id: string): Promise<User> {
+    const cacheKey = this.getCacheKey(`/admin/clients/${id}`);
+    const cached = this.cache.get<User>(cacheKey);
+    
+    if (cached) {
+      return cached;
+    }
+
     const response: AxiosResponse<User> = await this.api.get(`/admin/clients/${id}`);
+    
+    // Cache individual client for 60 seconds
+    this.cache.set(cacheKey, response.data, 60000);
+    
     return response.data;
   }
 
@@ -135,13 +203,36 @@ class ApiService {
     _sort?: string;
     _order?: 'ASC' | 'DESC';
   }): Promise<{ data: User[]; total: number }> {
+    const cacheKey = this.getCacheKey('/admin/drivers', params);
+    const cached = this.cache.get<{ data: User[]; total: number }>(cacheKey);
+    
+    if (cached) {
+      return cached;
+    }
+
     const response: AxiosResponse<User[]> = await this.api.get('/admin/drivers', { params });
     const total = parseInt(response.headers['x-total-count'] || '0');
-    return { data: response.data, total };
+    const result = { data: response.data, total };
+    
+    // Cache for 15 seconds for list data
+    this.cache.set(cacheKey, result, 15000);
+    
+    return result;
   }
 
   async getDriver(id: string): Promise<User> {
+    const cacheKey = this.getCacheKey(`/admin/drivers/${id}`);
+    const cached = this.cache.get<User>(cacheKey);
+    
+    if (cached) {
+      return cached;
+    }
+
     const response: AxiosResponse<User> = await this.api.get(`/admin/drivers/${id}`);
+    
+    // Cache individual driver for 60 seconds
+    this.cache.set(cacheKey, response.data, 60000);
+    
     return response.data;
   }
 
@@ -160,38 +251,91 @@ class ApiService {
     _sort?: string;
     _order?: 'ASC' | 'DESC';
   }): Promise<{ data: Order[]; total: number }> {
+    const cacheKey = this.getCacheKey('/admin/order-requests', params);
+    const cached = this.cache.get<{ data: Order[]; total: number }>(cacheKey);
+    
+    if (cached) {
+      return cached;
+    }
+
     const response: AxiosResponse<Order[]> = await this.api.get('/admin/order-requests', { params });
     const total = parseInt(response.headers['x-total-count'] || '0');
-    return { data: response.data, total };
+    const result = { data: response.data, total };
+    
+    // Cache for 10 seconds for orders (more dynamic data)
+    this.cache.set(cacheKey, result, 10000);
+    
+    return result;
   }
 
   async getOrder(id: string): Promise<Order> {
+    const cacheKey = this.getCacheKey(`/admin/order-requests/${id}`);
+    const cached = this.cache.get<Order>(cacheKey);
+    
+    if (cached) {
+      return cached;
+    }
+
     const response: AxiosResponse<Order> = await this.api.get(`/admin/order-requests/${id}`);
+    
+    // Cache individual order for 30 seconds
+    this.cache.set(cacheKey, response.data, 30000);
+    
     return response.data;
   }
 
   // Блокировка пользователей
   async blockUser(blockData: BlockUserRequest): Promise<{ message: string; userId: string }> {
     const response = await this.api.post('/admin/users/block', blockData);
+    
+    // Clear relevant caches when user is blocked
+    this.cache.delete(this.getCacheKey('/admin/clients'));
+    this.cache.delete(this.getCacheKey('/admin/drivers'));
+    this.cache.delete(this.getCacheKey(`/admin/clients/${blockData.userId}`));
+    this.cache.delete(this.getCacheKey(`/admin/drivers/${blockData.userId}`));
+    
     return response.data;
   }
 
   async unblockUser(userId: string): Promise<{ message: string; userId: string }> {
     const response = await this.api.put(`/admin/users/${userId}/unblock`);
+    
+    // Clear relevant caches when user is unblocked
+    this.cache.delete(this.getCacheKey('/admin/clients'));
+    this.cache.delete(this.getCacheKey('/admin/drivers'));
+    this.cache.delete(this.getCacheKey(`/admin/clients/${userId}`));
+    this.cache.delete(this.getCacheKey(`/admin/drivers/${userId}`));
+    
     return response.data;
   }
 
   // Проверка разблокировки пользователей
   async forceCheckUnblockUsers(): Promise<{ message: string }> {
     const response = await this.api.post('/admin/users/check-unblock');
+    
+    // Clear user caches after checking unblock
+    this.cache.delete(this.getCacheKey('/admin/clients'));
+    this.cache.delete(this.getCacheKey('/admin/drivers'));
+    
     return response.data;
   }
 
   // Получение статистики
   async getStats(): Promise<StatsData> {
+    const cacheKey = this.getCacheKey('/admin/stats');
+    const cached = this.cache.get<StatsData>(cacheKey);
+    
+    if (cached) {
+      return cached;
+    }
+
     try {
       // Пытаемся получить статистику с бэкенда
       const response: AxiosResponse<StatsData> = await this.api.get('/admin/stats');
+      
+      // Cache stats for 60 seconds
+      this.cache.set(cacheKey, response.data, 60000);
+      
       return response.data;
     } catch (error) {
       console.error('Error fetching stats from backend, calculating on frontend:', error);

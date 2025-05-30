@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -32,6 +33,7 @@ import { apiService } from '../services/api';
 import { Order, OrderStatus, OrderType } from '../types';
 
 const Orders: React.FC = () => {
+  const navigate = useNavigate();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
@@ -83,7 +85,7 @@ const Orders: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [paginationModel, filters, showSnackbar]);
+  }, [paginationModel, filters]);
 
   useEffect(() => {
     fetchOrders();
@@ -230,7 +232,7 @@ const Orders: React.FC = () => {
             icon={<Visibility />}
             label="Просмотр"
             onClick={() => {
-              console.log('View order:', order);
+              navigate(`/order-detail/${order.id}`);
             }}
           />,
         ];

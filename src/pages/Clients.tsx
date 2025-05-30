@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -35,8 +35,10 @@ import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { apiService } from '../services/api';
 import { User, BlockUserRequest } from '../types';
+import { useNavigate } from 'react-router-dom';
 
 const Clients: React.FC = () => {
+  const navigate = useNavigate();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
@@ -79,21 +81,21 @@ const Clients: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [paginationModel.page, paginationModel.pageSize, showSnackbar]);
+  }, [paginationModel.page, paginationModel.pageSize]);
 
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
 
-  const handleBlockUser = (user: User) => {
+  const handleBlockUser = useCallback((user: User) => {
     setSelectedUser(user);
     setBlockDialogOpen(true);
     setBlockReason('');
     setBlockDuration('');
     setBlockUntil('');
-  };
+  }, []);
 
-  const handleUnblockUser = async (user: User) => {
+  const handleUnblockUser = useCallback(async (user: User) => {
     try {
       await apiService.unblockUser(user.id);
       showSnackbar(`Пользователь ${user.firstName} ${user.lastName} разблокирован`, 'success');
@@ -101,9 +103,9 @@ const Clients: React.FC = () => {
     } catch (error: any) {
       showSnackbar('Ошибка разблокировки: ' + error.message, 'error');
     }
-  };
+  }, [fetchUsers]);
 
-  const submitBlockUser = async () => {
+  const submitBlockUser = useCallback(async () => {
     if (!selectedUser || !blockReason) return;
 
     try {
@@ -128,9 +130,9 @@ const Clients: React.FC = () => {
     } catch (error: any) {
       showSnackbar('Ошибка блокировки: ' + error.message, 'error');
     }
-  };
+  }, [selectedUser, blockReason, blockDuration, blockUntil, fetchUsers]);
 
-  const handleExportCSV = async () => {
+  const handleExportCSV = useCallback(async () => {
     try {
       // Получаем все данные для экспорта
       const { data } = await apiService.getClients({ _start: 0, _end: 10000 });
@@ -155,9 +157,9 @@ const Clients: React.FC = () => {
     } catch (error: any) {
       showSnackbar('Ошибка экспорта: ' + error.message, 'error');
     }
-  };
+  }, []);
 
-  const columns: GridColDef[] = [
+  const columns: GridColDef[] = useMemo(() => [
     { field: 'id', headerName: 'ID', width: 100 },
     { field: 'phone', headerName: 'Телефон', width: 150 },
     { field: 'firstName', headerName: 'Имя', width: 150 },
@@ -209,8 +211,7 @@ const Clients: React.FC = () => {
             icon={<Visibility />}
             label="Просмотр"
             onClick={() => {
-              // TODO: Открыть детальную информацию о пользователе
-              console.log('View user:', user);
+              navigate(`/client-detail/${user.id}`);
             }}
           />,
         ];
@@ -236,7 +237,7 @@ const Clients: React.FC = () => {
         return actions;
       },
     },
-  ];
+  ], [handleBlockUser, handleUnblockUser]);
 
   return (
     <Box>
