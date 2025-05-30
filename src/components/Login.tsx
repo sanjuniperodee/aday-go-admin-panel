@@ -160,14 +160,6 @@ const Login: React.FC = () => {
               >
                 {loading ? <CircularProgress size={24} /> : 'Отправить SMS код'}
               </Button>
-              
-              <Box sx={{ mt: 2, p: 2, backgroundColor: 'grey.100', borderRadius: 1, width: '100%' }}>
-                <Typography variant="body2" color="text.secondary" align="center">
-                  <strong>Демо доступ:</strong><br />
-                  Телефон: +77771234567admin<br />
-                  (любой номер содержащий "admin")
-                </Typography>
-              </Box>
             </Box>
           ) : (
             <Box component="form" onSubmit={handleConfirmCode} sx={{ mt: 1, width: '100%' }}>
