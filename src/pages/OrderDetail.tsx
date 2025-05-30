@@ -24,17 +24,10 @@ import {
 import { Order, User } from '../types';
 import { apiService } from '../services/api';
 
-interface OrderWithDetails extends Order {
-  client?: User;
-  driver?: User;
-  startedAt?: string;
-  arrivedAt?: string;
-}
-
 const OrderDetail: React.FC = () => {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
-  const [order, setOrder] = useState<OrderWithDetails | null>(null);
+  const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -49,7 +42,7 @@ const OrderDetail: React.FC = () => {
       try {
         setLoading(true);
         const orderData = await apiService.getOrder(orderId);
-        setOrder(orderData as OrderWithDetails);
+        setOrder(orderData as Order);
       } catch (err: any) {
         setError('Ошибка загрузки заказа: ' + err.message);
       } finally {
@@ -208,26 +201,26 @@ const OrderDetail: React.FC = () => {
                   </Typography>
                 </Grid>
 
-                {order.startedAt && (
+                {order.startTime && (
                   <Grid size={{ xs: 12, sm: 4 }}>
                     <Box display="flex" alignItems="center" mb={1}>
                       <Schedule color="success" sx={{ mr: 1 }} />
                       <Typography variant="subtitle2">Начат</Typography>
                     </Box>
                     <Typography variant="body2">
-                      {formatDateTime(order.startedAt)}
+                      {formatDateTime(order.startTime.toString())}
                     </Typography>
                   </Grid>
                 )}
 
-                {order.arrivedAt && (
+                {order.arrivalTime && (
                   <Grid size={{ xs: 12, sm: 4 }}>
                     <Box display="flex" alignItems="center" mb={1}>
                       <Schedule color="warning" sx={{ mr: 1 }} />
                       <Typography variant="subtitle2">Прибытие</Typography>
                     </Box>
                     <Typography variant="body2">
-                      {formatDateTime(order.arrivedAt)}
+                      {formatDateTime(order.arrivalTime.toString())}
                     </Typography>
                   </Grid>
                 )}

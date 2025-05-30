@@ -55,6 +55,8 @@ export interface Order {
   rating?: number;
   createdAt: string;
   updatedAt: string;
+  client?: User;
+  driver?: User;
 }
 
 export interface CategoryLicense {
