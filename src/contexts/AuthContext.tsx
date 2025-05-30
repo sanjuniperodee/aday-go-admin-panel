@@ -1,25 +1,17 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { apiService } from '../services/api';
+import { AdminAuth, AdminSMSRequest, AdminSMSConfirm } from '../types';
 
 interface AuthContextType {
   isAuthenticated: boolean;
-  loading: boolean;
-  authError: string | null;
-  login: (phone: string, smscode: string) => Promise<void>;
+  login: (credentials: AdminAuth) => Promise<void>;
+  sendSMSCode: (request: AdminSMSRequest) => Promise<{ smscode?: string }>;
+  confirmSMSCode: (request: AdminSMSConfirm) => Promise<void>;
   logout: () => void;
-  clearAuthError: () => void;
-  validateSession: () => Promise<boolean>;
+  loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -28,84 +20,72 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        if (apiService.isAuthenticated()) {
-          // Проверяем, действителен ли токен
-          const isValid = await apiService.validateToken();
-          if (isValid) {
-            setIsAuthenticated(true);
-          } else {
-            // Токен недействителен, выходим
-            apiService.logout();
-            setIsAuthenticated(false);
-            setAuthError('Сессия истекла. Необходимо войти в систему заново.');
-          }
-        } else {
-          setIsAuthenticated(false);
-        }
-      } catch (error) {
-        console.error('Auth check error:', error);
-        setIsAuthenticated(false);
-      } finally {
-        setLoading(false);
-      }
+    // Проверяем аутентификацию при загрузке
+    const checkAuth = () => {
+      const authenticated = apiService.isAuthenticated();
+      setIsAuthenticated(authenticated);
+      setLoading(false);
     };
 
     checkAuth();
   }, []);
 
-  const login = async (phone: string, smscode: string) => {
+  const login = async (credentials: AdminAuth) => {
     try {
-      setAuthError(null);
-      setLoading(true);
-      await apiService.confirmSMSCode({ phone, smscode });
+      await apiService.adminLogin(credentials);
       setIsAuthenticated(true);
-    } catch (error: any) {
-      setAuthError(error.message || 'Ошибка авторизации');
+    } catch (error) {
+      setIsAuthenticated(false);
       throw error;
-    } finally {
-      setLoading(false);
     }
   };
 
   const logout = () => {
     apiService.logout();
     setIsAuthenticated(false);
-    setAuthError(null);
   };
 
-  const clearAuthError = () => {
-    setAuthError(null);
-  };
-
-  const validateSession = async (): Promise<boolean> => {
+  const sendSMSCode = async (request: AdminSMSRequest) => {
     try {
-      const isValid = await apiService.validateToken();
-      if (!isValid) {
-        setIsAuthenticated(false);
-        setAuthError('Сессия истекла. Необходимо войти в систему заново.');
-        return false;
-      }
-      return true;
+      const response = await apiService.sendSMSCode(request);
+      return response;
     } catch (error) {
-      console.error('Session validation error:', error);
-      return false;
+      throw error;
     }
   };
 
-  const value: AuthContextType = {
-    isAuthenticated,
-    loading,
-    authError,
-    login,
-    logout,
-    clearAuthError,
-    validateSession,
+  const confirmSMSCode = async (request: AdminSMSConfirm) => {
+    try {
+      await apiService.confirmSMSCode(request);
+      setIsAuthenticated(true);
+    } catch (error) {
+      setIsAuthenticated(false);
+      throw error;
+    }
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  const value = {
+    isAuthenticated,
+    login,
+    logout,
+    sendSMSCode,
+    confirmSMSCode,
+    loading,
+  };
+
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
 }; 

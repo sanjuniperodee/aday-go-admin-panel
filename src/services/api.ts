@@ -4,7 +4,6 @@ import { User, Order, BlockUserRequest, StatsData, AdminAuth, AdminSMSRequest, A
 class ApiService {
   private api: AxiosInstance;
   private token: string | null = null;
-  private retryCount = new Map<string, number>();
 
   constructor() {
     this.api = axios.create({
@@ -20,57 +19,13 @@ class ApiService {
       this.setAuthHeader(this.token);
     }
 
-    // Улучшенный интерцептор для обработки ответов
+    // Интерцептор для обработки ответов
     this.api.interceptors.response.use(
       (response) => response,
-      async (error) => {
-        const originalRequest = error.config;
-        
+      (error) => {
         if (error.response?.status === 401) {
-          // Создаем уникальный ключ для запроса
-          const requestKey = `${originalRequest.method}-${originalRequest.url}`;
-          const currentRetryCount = this.retryCount.get(requestKey) || 0;
-          
-          // Если это первая попытка, добавляем более детальную информацию об ошибке
-          if (currentRetryCount === 0) {
-            this.retryCount.set(requestKey, 1);
-            
-            // Проверяем, есть ли токен
-            if (!this.token) {
-              this.logout();
-              throw new Error('Сессия истекла. Необходимо войти в систему заново.');
-            }
-            
-            // Проверяем заголовок авторизации
-            if (!originalRequest.headers.Authorization) {
-              this.setAuthHeader(this.token);
-              return this.api.request(originalRequest);
-            }
-            
-            // Если токен есть, но сервер его не принимает
-            throw new Error('Токен авторизации недействителен. Попробуйте выполнить операцию еще раз или войдите в систему заново.');
-          } else {
-            // При повторной 401 ошибке выходим из системы
-            this.logout();
-            throw new Error('Сессия истекла. Необходимо войти в систему заново.');
-          }
+          this.logout();
         }
-        
-        // Очищаем счетчик ретраев для успешных запросов
-        if (error.response?.status !== 401) {
-          const requestKey = `${originalRequest.method}-${originalRequest.url}`;
-          this.retryCount.delete(requestKey);
-        }
-        
-        // Улучшаем сообщения об ошибках
-        if (error.response?.status === 403) {
-          throw new Error('Недостаточно прав для выполнения операции.');
-        }
-        
-        if (error.response?.status >= 500) {
-          throw new Error('Ошибка сервера. Попробуйте еще раз позже.');
-        }
-        
         return Promise.reject(error);
       }
     );
@@ -130,42 +85,10 @@ class ApiService {
     this.token = null;
     localStorage.removeItem('adminToken');
     delete this.api.defaults.headers.common['Authorization'];
-    this.retryCount.clear(); // Очищаем счетчики ретраев
-    
-    // Уведомляем об выходе из системы
-    console.log('User logged out due to authentication error');
   }
 
   isAuthenticated(): boolean {
     return !!this.token;
-  }
-
-  // Проверка и обновление токена
-  async validateToken(): Promise<boolean> {
-    if (!this.token) {
-      return false;
-    }
-
-    try {
-      // Простой запрос для проверки валидности токена
-      await this.api.get('/admin/clients', { params: { _start: 0, _end: 1 } });
-      return true;
-    } catch (error: any) {
-      if (error.response?.status === 401) {
-        console.warn('Token is invalid');
-        return false;
-      }
-      // Если ошибка не связана с авторизацией, считаем токен валидным
-      return true;
-    }
-  }
-
-  // Принудительное обновление заголовков авторизации
-  refreshAuthHeader(): void {
-    if (this.token) {
-      this.setAuthHeader(this.token);
-      console.log('Auth header refreshed');
-    }
   }
 
   // Пользователи (клиенты)
@@ -249,61 +172,13 @@ class ApiService {
 
   // Блокировка пользователей
   async blockUser(blockData: BlockUserRequest): Promise<{ message: string; userId: string }> {
-    try {
-      console.log('Blocking user with data:', blockData);
-      console.log('Current token:', this.token ? 'Present' : 'Missing');
-      console.log('Authorization header:', this.api.defaults.headers.common['Authorization']);
-      
-      const response = await this.api.post('/admin/users/block', blockData);
-      return response.data;
-    } catch (error: any) {
-      console.error('Block user error:', error);
-      
-      if (error.response?.status === 401) {
-        throw new Error('Ошибка авторизации при блокировке пользователя. Попробуйте еще раз.');
-      }
-      
-      if (error.response?.status === 403) {
-        throw new Error('Недостаточно прав для блокировки пользователей.');
-      }
-      
-      if (error.response?.status === 400) {
-        throw new Error('Неверные данные для блокировки: ' + (error.response?.data?.message || 'Проверьте введенные данные'));
-      }
-      
-      if (error.response?.status === 404) {
-        throw new Error('Пользователь не найден.');
-      }
-      
-      throw new Error('Ошибка блокировки пользователя: ' + (error.response?.data?.message || error.message));
-    }
+    const response = await this.api.post('/admin/users/block', blockData);
+    return response.data;
   }
 
   async unblockUser(userId: string): Promise<{ message: string; userId: string }> {
-    try {
-      console.log('Unblocking user:', userId);
-      console.log('Current token:', this.token ? 'Present' : 'Missing');
-      console.log('Authorization header:', this.api.defaults.headers.common['Authorization']);
-      
-      const response = await this.api.put(`/admin/users/${userId}/unblock`);
-      return response.data;
-    } catch (error: any) {
-      console.error('Unblock user error:', error);
-      
-      if (error.response?.status === 401) {
-        throw new Error('Ошибка авторизации при разблокировке пользователя. Попробуйте еще раз.');
-      }
-      
-      if (error.response?.status === 403) {
-        throw new Error('Недостаточно прав для разблокировки пользователей.');
-      }
-      
-      if (error.response?.status === 404) {
-        throw new Error('Пользователь не найден.');
-      }
-      
-      throw new Error('Ошибка разблокировки пользователя: ' + (error.response?.data?.message || error.message));
-    }
+    const response = await this.api.put(`/admin/users/${userId}/unblock`);
+    return response.data;
   }
 
   // Проверка разблокировки пользователей

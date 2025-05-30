@@ -7,7 +7,11 @@ import {
   Chip,
   Alert,
   Snackbar,
-  Tooltip,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  TextField,
 } from '@mui/material';
 import {
   DataGrid,
@@ -19,13 +23,13 @@ import {
   Visibility,
   Refresh,
   Assignment,
+  FilterList,
   Download,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { apiService } from '../services/api';
-import { Order, OrderStatus, OrderType, OrderFilters } from '../types';
-import { AdvancedFilters } from '../components/AdvancedFilters';
+import { Order, OrderStatus, OrderType } from '../types';
 
 const Orders: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -36,8 +40,13 @@ const Orders: React.FC = () => {
     pageSize: 25,
   });
 
-  // Расширенные фильтры
-  const [filters, setFilters] = useState<OrderFilters>({});
+  // Фильтры
+  const [filters, setFilters] = useState({
+    orderStatus: '',
+    orderType: '',
+    clientId: '',
+    driverId: '',
+  });
 
   // Уведомления
   const [snackbar, setSnackbar] = useState({
@@ -53,13 +62,20 @@ const Orders: React.FC = () => {
   const fetchOrders = useCallback(async () => {
     try {
       setLoading(true);
-      const { data, total } = await apiService.getOrders({
-        ...filters,
+      const params: any = {
         _start: paginationModel.page * paginationModel.pageSize,
         _end: (paginationModel.page + 1) * paginationModel.pageSize,
-        _sort: 'createdAt',
+        _sort: 'id',
         _order: 'DESC',
-      });
+      };
+
+      // Добавляем фильтры если они установлены
+      if (filters.orderStatus) params.orderStatus = filters.orderStatus;
+      if (filters.orderType) params.orderType = filters.orderType;
+      if (filters.clientId) params.clientId = filters.clientId;
+      if (filters.driverId) params.driverId = filters.driverId;
+
+      const { data, total } = await apiService.getOrders(params);
       setOrders(data);
       setTotalCount(total);
     } catch (error: any) {
@@ -121,12 +137,8 @@ const Orders: React.FC = () => {
 
   const handleExportCSV = async () => {
     try {
-      // Получаем данные с текущими фильтрами для экспорта
-      const { data } = await apiService.getOrders({ 
-        ...filters,
-        _start: 0, 
-        _end: 10000 
-      });
+      // Получаем все данные для экспорта
+      const { data } = await apiService.getOrders({ _start: 0, _end: 10000 });
       
       // Подготавливаем данные для экспорта
       const exportData = data.map(order => ({
@@ -153,27 +165,8 @@ const Orders: React.FC = () => {
     }
   };
 
-  const handleFiltersChange = (newFilters: OrderFilters) => {
-    setFilters(newFilters);
-    setPaginationModel({ ...paginationModel, page: 0 }); // Сбрасываем на первую страницу
-  };
-
-  const handleClearFilters = () => {
-    setFilters({});
-    setPaginationModel({ ...paginationModel, page: 0 });
-  };
-
   const columns: GridColDef[] = [
-    { 
-      field: 'id', 
-      headerName: 'ID', 
-      width: 100,
-      renderCell: (params) => (
-        <Tooltip title={params.value}>
-          <span>{params.value.substring(0, 8)}...</span>
-        </Tooltip>
-      )
-    },
+    { field: 'id', headerName: 'ID', width: 100 },
     {
       field: 'orderType',
       headerName: 'Тип',
@@ -183,14 +176,13 @@ const Orders: React.FC = () => {
           label={getOrderTypeLabel(params.value)}
           size="small"
           variant="outlined"
-          color="primary"
         />
       ),
     },
     {
       field: 'orderStatus',
       headerName: 'Статус',
-      width: 140,
+      width: 150,
       renderCell: (params) => (
         <Chip
           label={getOrderStatusLabel(params.value)}
@@ -199,78 +191,29 @@ const Orders: React.FC = () => {
         />
       ),
     },
-    { 
-      field: 'from', 
-      headerName: 'Откуда', 
-      width: 180,
-      renderCell: (params) => (
-        <Tooltip title={params.value}>
-          <span style={{ 
-            overflow: 'hidden', 
-            textOverflow: 'ellipsis', 
-            whiteSpace: 'nowrap',
-            maxWidth: '100%',
-            display: 'block'
-          }}>
-            {params.value}
-          </span>
-        </Tooltip>
-      )
-    },
-    { 
-      field: 'to', 
-      headerName: 'Куда', 
-      width: 180,
-      renderCell: (params) => (
-        <Tooltip title={params.value}>
-          <span style={{ 
-            overflow: 'hidden', 
-            textOverflow: 'ellipsis', 
-            whiteSpace: 'nowrap',
-            maxWidth: '100%',
-            display: 'block'
-          }}>
-            {params.value}
-          </span>
-        </Tooltip>
-      )
-    },
+    { field: 'from', headerName: 'Откуда', width: 200 },
+    { field: 'to', headerName: 'Куда', width: 200 },
     {
       field: 'price',
       headerName: 'Цена',
       width: 120,
       renderCell: (params) => formatCurrency(params.value),
     },
+    { field: 'clientId', headerName: 'ID клиента', width: 120 },
+    { field: 'driverId', headerName: 'ID водителя', width: 120 },
     {
-      field: 'clientId',
-      headerName: 'Клиент',
+      field: 'rating',
+      headerName: 'Рейтинг',
       width: 100,
       renderCell: (params) => {
         if (!params.value) return '-';
-        return (
-          <Tooltip title={params.value}>
-            <span>{params.value.substring(0, 8)}...</span>
-          </Tooltip>
-        );
-      },
-    },
-    {
-      field: 'driverId',
-      headerName: 'Водитель',
-      width: 100,
-      renderCell: (params) => {
-        if (!params.value) return '-';
-        return (
-          <Tooltip title={params.value}>
-            <span>{params.value.substring(0, 8)}...</span>
-          </Tooltip>
-        );
+        return `${params.value}/5`;
       },
     },
     {
       field: 'createdAt',
-      headerName: 'Создан',
-      width: 130,
+      headerName: 'Дата создания',
+      width: 180,
       renderCell: (params) => {
         return format(new Date(params.value), 'dd.MM.yyyy HH:mm', { locale: ru });
       },
@@ -279,7 +222,7 @@ const Orders: React.FC = () => {
       field: 'actions',
       type: 'actions',
       headerName: 'Действия',
-      width: 80,
+      width: 100,
       getActions: (params: GridRowParams) => {
         const order = params.row as Order;
         return [
@@ -287,7 +230,6 @@ const Orders: React.FC = () => {
             icon={<Visibility />}
             label="Просмотр"
             onClick={() => {
-              // TODO: Открыть детальную информацию о заказе
               console.log('View order:', order);
             }}
           />,
@@ -296,19 +238,21 @@ const Orders: React.FC = () => {
     },
   ];
 
+  const clearFilters = () => {
+    setFilters({
+      orderStatus: '',
+      orderType: '',
+      clientId: '',
+      driverId: '',
+    });
+  };
+
   return (
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Box display="flex" alignItems="center" gap={2}>
           <Assignment color="primary" />
-          <Typography variant="h4">
-            Заказы
-            {totalCount > 0 && (
-              <Typography component="span" variant="body1" color="text.secondary" sx={{ ml: 2 }}>
-                ({totalCount})
-              </Typography>
-            )}
-          </Typography>
+          <Typography variant="h4">Заказы</Typography>
         </Box>
         <Box display="flex" gap={2}>
           <Button
@@ -318,25 +262,78 @@ const Orders: React.FC = () => {
           >
             Экспорт CSV
           </Button>
-          <Button
-            variant="outlined"
-            startIcon={<Refresh />}
-            onClick={fetchOrders}
-          >
-            Обновить
-          </Button>
+        <Button
+          variant="outlined"
+          startIcon={<Refresh />}
+          onClick={fetchOrders}
+        >
+          Обновить
+        </Button>
         </Box>
       </Box>
 
-      {/* Расширенные фильтры */}
-      <AdvancedFilters
-        type="orders"
-        filters={filters}
-        onFiltersChange={handleFiltersChange}
-        onClearFilters={handleClearFilters}
-      />
+      {/* Фильтры */}
+      <Paper sx={{ p: 2, mb: 3 }}>
+        <Box display="flex" alignItems="center" gap={2} mb={2}>
+          <FilterList />
+          <Typography variant="h6">Фильтры</Typography>
+        </Box>
+        <Box display="flex" gap={2} flexWrap="wrap">
+          <FormControl size="small" sx={{ minWidth: 150 }}>
+            <InputLabel>Статус заказа</InputLabel>
+            <Select
+              value={filters.orderStatus}
+              onChange={(e) => setFilters({ ...filters, orderStatus: e.target.value })}
+              label="Статус заказа"
+            >
+              <MenuItem value="">Все</MenuItem>
+              {Object.values(OrderStatus).map((status) => (
+                <MenuItem key={status} value={status}>
+                  {getOrderStatusLabel(status)}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
 
-      <Paper sx={{ height: 600, width: '100%', mt: 2 }}>
+          <FormControl size="small" sx={{ minWidth: 150 }}>
+            <InputLabel>Тип заказа</InputLabel>
+            <Select
+              value={filters.orderType}
+              onChange={(e) => setFilters({ ...filters, orderType: e.target.value })}
+              label="Тип заказа"
+            >
+              <MenuItem value="">Все</MenuItem>
+              {Object.values(OrderType).map((type) => (
+                <MenuItem key={type} value={type}>
+                  {getOrderTypeLabel(type)}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          <TextField
+            size="small"
+            label="ID клиента"
+            value={filters.clientId}
+            onChange={(e) => setFilters({ ...filters, clientId: e.target.value })}
+            sx={{ minWidth: 150 }}
+          />
+
+          <TextField
+            size="small"
+            label="ID водителя"
+            value={filters.driverId}
+            onChange={(e) => setFilters({ ...filters, driverId: e.target.value })}
+            sx={{ minWidth: 150 }}
+          />
+
+          <Button variant="outlined" onClick={clearFilters}>
+            Очистить фильтры
+          </Button>
+        </Box>
+      </Paper>
+
+      <Paper sx={{ height: 600, width: '100%' }}>
         <DataGrid
           rows={orders}
           columns={columns}
@@ -347,11 +344,6 @@ const Orders: React.FC = () => {
           paginationMode="server"
           pageSizeOptions={[25, 50, 100]}
           disableRowSelectionOnClick
-          sx={{
-            '& .MuiDataGrid-row:hover': {
-              backgroundColor: 'action.hover',
-            },
-          }}
         />
       </Paper>
 
