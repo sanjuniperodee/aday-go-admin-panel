@@ -12,6 +12,7 @@ import {
   Paper,
   Divider,
   Grid,
+  Snackbar,
 } from '@mui/material';
 import {
   ArrowBack,
@@ -27,6 +28,7 @@ import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { User, Order, OrderType } from '../types';
 import { apiService } from '../services/api';
+import { BlockUserDialog } from '../components/BlockUserDialog';
 
 const DriverDetail: React.FC = () => {
   const { driverId } = useParams<{ driverId: string }>();
@@ -35,6 +37,54 @@ const DriverDetail: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [blockUserDialogOpen, setBlockUserDialogOpen] = useState(false);
+  
+  // Уведомления
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: '',
+    severity: 'success' as 'success' | 'error',
+  });
+
+  const showSnackbar = (message: string, severity: 'success' | 'error') => {
+    setSnackbar({ open: true, message, severity });
+  };
+
+  const handleBlockUser = () => {
+    setBlockUserDialogOpen(true);
+  };
+
+  const handleUnblockUser = async () => {
+    if (!driver) return;
+    
+    try {
+      await apiService.unblockUser(driver.id);
+      showSnackbar(`Водитель ${driver.firstName} ${driver.lastName} разблокирован`, 'success');
+      // Обновляем данные водителя
+      const driverData = await apiService.getDriver(driver.id);
+      setDriver(driverData);
+    } catch (error: any) {
+      showSnackbar('Ошибка разблокировки: ' + error.message, 'error');
+    }
+  };
+
+  const handleBlockConfirm = async (userId: string, reason: string, blockedUntil?: string) => {
+    try {
+      await apiService.blockUser({
+        userId,
+        reason,
+        blockedUntil,
+      });
+      showSnackbar(`Водитель ${driver?.firstName} ${driver?.lastName} заблокирован`, 'success');
+      // Обновляем данные водителя
+      if (driver) {
+        const driverData = await apiService.getDriver(driver.id);
+        setDriver(driverData);
+      }
+    } catch (error: any) {
+      showSnackbar('Ошибка блокировки: ' + error.message, 'error');
+    }
+  };
 
   useEffect(() => {
     const fetchDriverData = async () => {
@@ -340,10 +390,7 @@ const DriverDetail: React.FC = () => {
                   color="success"
                   fullWidth
                   startIcon={<CheckCircle />}
-                  onClick={() => {
-                    // TODO: Implement unblock functionality
-                    console.log('Unblock driver:', driver.id);
-                  }}
+                  onClick={handleUnblockUser}
                 >
                   Разблокировать
                 </Button>
@@ -353,10 +400,7 @@ const DriverDetail: React.FC = () => {
                   color="error"
                   fullWidth
                   startIcon={<Block />}
-                  onClick={() => {
-                    // TODO: Implement block functionality
-                    console.log('Block driver:', driver.id);
-                  }}
+                  onClick={handleBlockUser}
                 >
                   Заблокировать
                 </Button>
@@ -365,6 +409,28 @@ const DriverDetail: React.FC = () => {
           </Card>
         </Grid>
       </Grid>
+
+      {/* Диалог блокировки пользователя */}
+      <BlockUserDialog
+        open={blockUserDialogOpen}
+        user={driver}
+        onClose={() => setBlockUserDialogOpen(false)}
+        onConfirm={handleBlockConfirm}
+      />
+
+      {/* Уведомления */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+      >
+        <Alert 
+          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+          severity={snackbar.severity}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

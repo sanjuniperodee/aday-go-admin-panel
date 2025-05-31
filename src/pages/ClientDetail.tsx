@@ -12,6 +12,7 @@ import {
   Paper,
   Divider,
   Grid,
+  Snackbar,
 } from '@mui/material';
 import {
   ArrowBack,
@@ -26,6 +27,7 @@ import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { User, Order } from '../types';
 import { apiService } from '../services/api';
+import { BlockUserDialog } from '../components/BlockUserDialog';
 
 const ClientDetail: React.FC = () => {
   const { clientId } = useParams<{ clientId: string }>();
@@ -34,6 +36,54 @@ const ClientDetail: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [blockUserDialogOpen, setBlockUserDialogOpen] = useState(false);
+  
+  // Уведомления
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: '',
+    severity: 'success' as 'success' | 'error',
+  });
+
+  const showSnackbar = (message: string, severity: 'success' | 'error') => {
+    setSnackbar({ open: true, message, severity });
+  };
+
+  const handleBlockUser = () => {
+    setBlockUserDialogOpen(true);
+  };
+
+  const handleUnblockUser = async () => {
+    if (!client) return;
+    
+    try {
+      await apiService.unblockUser(client.id);
+      showSnackbar(`Клиент ${client.firstName} ${client.lastName} разблокирован`, 'success');
+      // Обновляем данные клиента
+      const clientData = await apiService.getClient(client.id);
+      setClient(clientData);
+    } catch (error: any) {
+      showSnackbar('Ошибка разблокировки: ' + error.message, 'error');
+    }
+  };
+
+  const handleBlockConfirm = async (userId: string, reason: string, blockedUntil?: string) => {
+    try {
+      await apiService.blockUser({
+        userId,
+        reason,
+        blockedUntil,
+      });
+      showSnackbar(`Клиент ${client?.firstName} ${client?.lastName} заблокирован`, 'success');
+      // Обновляем данные клиента
+      if (client) {
+        const clientData = await apiService.getClient(client.id);
+        setClient(clientData);
+      }
+    } catch (error: any) {
+      showSnackbar('Ошибка блокировки: ' + error.message, 'error');
+    }
+  };
 
   useEffect(() => {
     const fetchClientData = async () => {
@@ -299,10 +349,7 @@ const ClientDetail: React.FC = () => {
                   color="success"
                   fullWidth
                   startIcon={<CheckCircle />}
-                  onClick={() => {
-                    // TODO: Implement unblock functionality
-                    console.log('Unblock user:', client.id);
-                  }}
+                  onClick={handleUnblockUser}
                 >
                   Разблокировать
                 </Button>
@@ -312,10 +359,7 @@ const ClientDetail: React.FC = () => {
                   color="error"
                   fullWidth
                   startIcon={<Block />}
-                  onClick={() => {
-                    // TODO: Implement block functionality
-                    console.log('Block user:', client.id);
-                  }}
+                  onClick={handleBlockUser}
                 >
                   Заблокировать
                 </Button>
@@ -324,6 +368,28 @@ const ClientDetail: React.FC = () => {
           </Card>
         </Grid>
       </Grid>
+
+      {/* Диалог блокировки пользователя */}
+      <BlockUserDialog
+        open={blockUserDialogOpen}
+        user={client}
+        onClose={() => setBlockUserDialogOpen(false)}
+        onConfirm={handleBlockConfirm}
+      />
+
+      {/* Уведомления */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+      >
+        <Alert 
+          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+          severity={snackbar.severity}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };
